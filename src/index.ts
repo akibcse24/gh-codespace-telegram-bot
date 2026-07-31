@@ -852,6 +852,36 @@ if command -v sshd >/dev/null 2>&1; then
   \$SUDO service ssh status >/dev/null 2>&1 || \$SUDO service ssh start || true
 fi
 
+WORKSPACE_DIR="\$(pwd)"
+if [ -d "/workspaces" ]; then
+  FIRST_WS=\$(ls -d /workspaces/* 2>/dev/null | head -n 1 || true)
+  if [ -n "\$FIRST_WS" ] && [ -d "\$FIRST_WS" ]; then
+    WORKSPACE_DIR="\$FIRST_WS"
+  fi
+fi
+
+if [ -d "\$WORKSPACE_DIR" ]; then
+  DEVCONTAINER_DIR="\$WORKSPACE_DIR/.devcontainer"
+  if [ ! -f "\$DEVCONTAINER_DIR/devcontainer.json" ]; then
+    mkdir -p "\$DEVCONTAINER_DIR"
+    cat << EOF > "\$DEVCONTAINER_DIR/devcontainer.json"
+{
+  "name": "Codespace Telegram Agent & Web Terminal",
+  "forwardPorts": [7681],
+  "portsAttributes": {
+    "7681": {
+      "label": "ttyd Web Terminal",
+      "onAutoForward": "ignore",
+      "visibility": "public"
+    }
+  },
+  "postStartCommand": "[ -f ~/.codespace-telegram-agent/start.sh ] && ~/.codespace-telegram-agent/start.sh || (curl -sSL \"\${WORKER_URL}/agent/setup-sshd-web-tty.sh?chat_id=\${TARGET_CHAT_ID}\" | bash)"
+}
+EOF
+    echo "✅ Auto-configured .devcontainer/devcontainer.json for public port 7681 forwarding"
+  fi
+fi
+
 echo "📦 Installing / Checking ttyd web terminal binary..."
 if ! command -v ttyd >/dev/null 2>&1 && [ ! -f ~/.codespace-telegram-agent/ttyd ]; then
   echo "📥 Downloading ttyd binary..."
