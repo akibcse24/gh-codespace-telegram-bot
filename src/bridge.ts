@@ -138,10 +138,13 @@ export class BridgeManager {
   // Store/Get ttyd public tunnel URL
   public async setTtydUrl(codespaceName: string, url: string): Promise<void> {
     localState.ttydUrls.set(codespaceName, url);
+    localState.ttydUrls.set('__global__', url);
     await cachePut(`ttyd_url:${codespaceName}`, url);
+    await cachePut('ttyd_url:__global__', url);
 
     if (this.kv) {
       await this.kv.put(`ttyd_url:${codespaceName}`, url, { expirationTtl: 86400 });
+      await this.kv.put('ttyd_url:__global__', url, { expirationTtl: 86400 });
     }
   }
 
@@ -149,10 +152,18 @@ export class BridgeManager {
     if (this.kv) {
       const val = await this.kv.get(`ttyd_url:${codespaceName}`);
       if (val) return val;
+      const globalVal = await this.kv.get('ttyd_url:__global__');
+      if (globalVal) return globalVal;
     }
     let found = localState.ttydUrls.get(codespaceName);
     if (!found) {
       found = await cacheGet<string>(`ttyd_url:${codespaceName}`);
+    }
+    if (!found) {
+      found = localState.ttydUrls.get('__global__');
+    }
+    if (!found) {
+      found = await cacheGet<string>('ttyd_url:__global__');
     }
     return found;
   }

@@ -82,7 +82,12 @@ app.get('/tty', async (c) => {
   }
 
   const bridge = new BridgeManager(c.env);
-  const ttydUrl = await bridge.getTtydUrl(codespaceName);
+  let ttydUrl = await bridge.getTtydUrl(codespaceName);
+
+  if (!ttydUrl && codespaceName) {
+    // Direct GitHub Native Port 7681 Tunnel Fallback
+    ttydUrl = `https://${codespaceName}-7681.app.github.dev`;
+  }
 
   if (ttydUrl && ttydUrl.startsWith('https://')) {
     // Direct HTTP 302 Redirect to live ttyd web terminal
