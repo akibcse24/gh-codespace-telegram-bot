@@ -54,6 +54,7 @@ async function findTunnelUrlInLogs() {
 
   const logFiles = [
     { file: path.join(agentDir, 'cloudflared.log'), regex: /https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/g },
+    { file: path.join(agentDir, 'serveo.log'), regex: /https:\/\/[a-zA-Z0-9.-]+\.serveo\.net/g },
     { file: path.join(agentDir, 'pinggy.log'), regex: /https:\/\/[a-zA-Z0-9.-]+\.(pinggy\.online|pinggy\.link)/g },
   ];
 

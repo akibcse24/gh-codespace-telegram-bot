@@ -95,8 +95,9 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-echo "🌐 Launching Zero-Login Public Tunnels for ttyd (Cloudflare & Pinggy)..."
+echo "🌐 Launching Zero-Login Public Tunnels for ttyd (Cloudflare, Serveo & Pinggy)..."
 pkill -f "cloudflared" || true
+pkill -f "ssh.*serveo" || true
 pkill -f "ssh.*pinggy" || true
 
 if ! command -v cloudflared >/dev/null 2>&1 && [ ! -f "$AGENT_DIR/cloudflared" ]; then
@@ -116,13 +117,17 @@ if [ -n "$CF_BIN" ]; then
   eval "nohup $CF_BIN tunnel --url http://localhost:7681 > $AGENT_DIR/cloudflared.log 2>&1 &"
 fi
 
+eval "nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:7681 serveo.net > $AGENT_DIR/serveo.log 2>&1 &"
 eval "nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:7681 a.pinggy.online > $AGENT_DIR/pinggy.log 2>&1 &"
 
 if [ -z "$PUBLIC_TTYD_URL" ]; then
-  for i in {1..12}; do
+  for i in {1..20}; do
     CANDIDATE=""
     if [ -f "$AGENT_DIR/cloudflared.log" ]; then
       CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" "$AGENT_DIR/cloudflared.log" | tail -n 1 || true)
+    fi
+    if [ -z "$CANDIDATE" ] && [ -f "$AGENT_DIR/serveo.log" ]; then
+      CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.serveo\.net" "$AGENT_DIR/serveo.log" | tail -n 1 || true)
     fi
     if [ -z "$CANDIDATE" ] && [ -f "$AGENT_DIR/pinggy.log" ]; then
       CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.(pinggy\.online|pinggy\.link)" "$AGENT_DIR/pinggy.log" | tail -n 1 || true)

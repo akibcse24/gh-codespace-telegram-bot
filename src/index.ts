@@ -236,25 +236,25 @@ app.post('/agent/notify-online', async (c) => {
       });
     }
 
+    const directTunnelLink = validTunnelUrl ? `\n🔗 <b>Direct Tunnel Link:</b>\n${validTunnelUrl}\n` : '';
+
     const message = `🚀 <b>GitHub Codespace ttyd Web Terminal is ONLINE!</b>
 
-🟢 <b>Codespace Target:</b> <code>${escapeHtml(body.codespaceName)}</code> is active and online.
-
-🖥️ <b>ttyd Web Terminal Link:</b>
-${finalTtydUrl}
+🟢 <b>Codespace Target:</b> <code>${escapeHtml(body.codespaceName)}</code> is active and online.${directTunnelLink}
+🖥️ <b>ttyd Web Terminal Redirect Link:</b>
+${workerRedirectUrl}
 
 🔑 <b>GH CLI SSH Access Command:</b>
 <code>gh codespace ssh -c ${escapeHtml(body.codespaceName)}</code>`;
 
+    const inlineBtns: any[] = [];
+    if (validTunnelUrl) {
+      inlineBtns.push([{ text: '🌐 Open Web Terminal (Direct Link)', url: validTunnelUrl }]);
+    }
+    inlineBtns.push([{ text: '🖥️ Open TTY Terminal (Bridge)', url: workerRedirectUrl }]);
+
     const kb = {
-      inline_keyboard: [
-        [
-          {
-            text: '🖥️ Open ttyd Web Terminal',
-            url: finalTtydUrl,
-          },
-        ],
-      ],
+      inline_keyboard: inlineBtns,
     };
 
     const results: string[] = [];
@@ -909,8 +909,9 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-echo "🌐 Launching Zero-Login Public Tunnels for ttyd (Cloudflare & Pinggy)..."
+echo "🌐 Launching Zero-Login Public Tunnels for ttyd (Cloudflare, Serveo & Pinggy)..."
 pkill -f "cloudflared" || true
+pkill -f "ssh.*serveo" || true
 pkill -f "ssh.*pinggy" || true
 
 if ! command -v cloudflared >/dev/null 2>&1 && [ ! -f ~/.codespace-telegram-agent/cloudflared ]; then
@@ -930,13 +931,17 @@ if [ -n "\$CF_BIN" ]; then
   eval "nohup \$CF_BIN tunnel --url http://localhost:7681 > ~/.codespace-telegram-agent/cloudflared.log 2>&1 &"
 fi
 
+eval "nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:7681 serveo.net > ~/.codespace-telegram-agent/serveo.log 2>&1 &"
 eval "nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:7681 a.pinggy.online > ~/.codespace-telegram-agent/pinggy.log 2>&1 &"
 
 if [ -z "\$PUBLIC_TTYD_URL" ]; then
-  for i in {1..12}; do
+  for i in {1..20}; do
     CANDIDATE=""
     if [ -f ~/.codespace-telegram-agent/cloudflared.log ]; then
       CANDIDATE=\$(grep -a -oE "https://[a-zA-Z0-9.-]+\\.trycloudflare\\.com" ~/.codespace-telegram-agent/cloudflared.log | tail -n 1 || true)
+    fi
+    if [ -z "\$CANDIDATE" ] && [ -f ~/.codespace-telegram-agent/serveo.log ]; then
+      CANDIDATE=\$(grep -a -oE "https://[a-zA-Z0-9.-]+\\.serveo\\.net" ~/.codespace-telegram-agent/serveo.log | tail -n 1 || true)
     fi
     if [ -z "\$CANDIDATE" ] && [ -f ~/.codespace-telegram-agent/pinggy.log ]; then
       CANDIDATE=\$(grep -a -oE "https://[a-zA-Z0-9.-]+\\.(pinggy\\.online|pinggy\\.link)" ~/.codespace-telegram-agent/pinggy.log | tail -n 1 || true)
