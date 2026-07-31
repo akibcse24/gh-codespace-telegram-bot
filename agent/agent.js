@@ -63,10 +63,12 @@ async function findTunnelUrlInLogs() {
         const content = fs.readFileSync(item.file, 'utf8');
         const matches = content.match(item.regex);
         if (matches && matches.length > 0) {
-          const candidate = matches[matches.length - 1];
-          if (candidate && candidate.startsWith('https://') && !candidate.includes('Binary file') && !candidate.includes('serveo.net')) {
-            if (await checkUrlHttpReachable(candidate)) {
-              return candidate;
+          for (let idx = matches.length - 1; idx >= Math.max(0, matches.length - 5); idx--) {
+            const candidate = matches[idx];
+            if (candidate && candidate.startsWith('https://') && !candidate.includes('Binary file') && !candidate.includes('serveo.net')) {
+              if (await checkUrlHttpReachable(candidate)) {
+                return candidate;
+              }
             }
           }
         }

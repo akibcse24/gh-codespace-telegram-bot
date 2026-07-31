@@ -82,12 +82,7 @@ app.get('/tty', async (c) => {
   }
 
   const bridge = new BridgeManager(c.env);
-  let ttydUrl = await bridge.getTtydUrl(codespaceName);
-
-  if (!ttydUrl && codespaceName) {
-    // Direct GitHub Native Port 7681 Tunnel Fallback
-    ttydUrl = `https://${codespaceName}-7681.app.github.dev`;
-  }
+  const ttydUrl = await bridge.getTtydUrl(codespaceName);
 
   if (ttydUrl && ttydUrl.startsWith('https://')) {
     // Direct HTTP 302 Redirect to live ttyd web terminal
@@ -1108,10 +1103,12 @@ async function findTunnelUrlInLogs() {
         const content = fs.readFileSync(item.file, 'utf8');
         const matches = content.match(item.regex);
         if (matches && matches.length > 0) {
-          const candidate = matches[matches.length - 1];
-          if (candidate && candidate.startsWith('https://') && !candidate.includes('Binary file') && !candidate.includes('serveo.net')) {
-            if (await checkUrlHttpReachable(candidate)) {
-              return candidate;
+          for (let idx = matches.length - 1; idx >= Math.max(0, matches.length - 5); idx--) {
+            const candidate = matches[idx];
+            if (candidate && candidate.startsWith('https://') && !candidate.includes('Binary file') && !candidate.includes('serveo.net')) {
+              if (await checkUrlHttpReachable(candidate)) {
+                return candidate;
+              }
             }
           }
         }
