@@ -825,6 +825,10 @@ if [ "\$TARGET_CHAT_ID" = "YOUR_CHAT_ID" ]; then
   TARGET_CHAT_ID=""
 fi
 
+AGENT_DIR="\$HOME/.codespace-telegram-agent"
+mkdir -p "\$AGENT_DIR"
+rm -f "\$AGENT_DIR"/*.log
+
 echo "============================================================"
 echo "🚀 Setting up OpenSSH Server, ttyd & Public Tunnel..."
 echo "Codespace: \$CODESPACE_NAME"
@@ -842,9 +846,6 @@ if command -v sshd >/dev/null 2>&1; then
   echo "✅ OpenSSH Server is available."
   \$SUDO service ssh status >/dev/null 2>&1 || \$SUDO service ssh start || true
 fi
-
-mkdir -p ~/.codespace-telegram-agent
-rm -f ~/.codespace-telegram-agent/*.log
 
 echo "📦 Installing / Checking ttyd web terminal binary..."
 if ! command -v ttyd >/dev/null 2>&1 && [ ! -f ~/.codespace-telegram-agent/ttyd ]; then
