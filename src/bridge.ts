@@ -206,7 +206,8 @@ export class BridgeManager {
       }
     }
 
-    if (this.defaultPat && !accounts.some((a) => a.alias === 'default')) {
+    const hasRealDefaultPat = this.defaultPat && !this.defaultPat.includes('YOUR_GITHUB_PAT');
+    if (hasRealDefaultPat && !accounts.some((a) => a.alias === 'default')) {
       accounts.unshift({
         alias: 'default',
         pat: this.defaultPat,
@@ -236,8 +237,8 @@ export class BridgeManager {
     }
 
     const found = accounts.find((a) => a.alias === activeAlias);
-    // If activeAlias was set to a custom account (e.g. 'ca'), return it! Don't default to accounts[0] if activeAlias exists.
-    return found || accounts[accounts.length - 1] || accounts[0];
+    const validAccounts = accounts.filter((a) => a.pat && !a.pat.includes('YOUR_GITHUB_PAT'));
+    return found || validAccounts[0] || accounts[accounts.length - 1] || accounts[0];
   }
 
   public async setActiveAccount(userId: number, alias: string): Promise<boolean> {
