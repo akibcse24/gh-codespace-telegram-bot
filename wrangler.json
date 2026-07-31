@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gh-codespace-telegram-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-02-08",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "vars": {
+    "AGENT_SECRET": "super_secret_agent_key_123",
+    "GITHUB_PAT": "ghp_YOUR_GITHUB_PAT_TOKEN_HERE",
+    "TELEGRAM_BOT_TOKEN": "8715755681:AAFqMw42pg92WgQrlu8K3K5tPlN0pODWcAE"
+  }
+}
