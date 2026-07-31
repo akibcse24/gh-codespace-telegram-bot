@@ -11,6 +11,7 @@ const localState = {
   commandResults: new Map<string, CommandResult>(), // commandId -> CommandResult
   manuallyStopped: new Set<string>(), // codespaceName -> set of manually stopped codespaces
   ttydUrls: new Map<string, string>(), // codespaceName -> ttyd public tunnel url
+  latestTtydUrl: undefined as string | undefined, // Global latest live tunnel URL fallback
   lastChatId: undefined as number | undefined,
   allChatIds: new Set<number>(),
   globalActiveCs: undefined as string | undefined,
@@ -23,10 +24,11 @@ async function cachePut(key: string, data: any): Promise<void> {
   try {
     if (typeof caches !== 'undefined' && caches.default) {
       const url = `${WORKER_CACHE_DOMAIN}/cache/state/${encodeURIComponent(key)}`;
+      const req = new Request(url, { method: 'GET' });
       const res = new Response(JSON.stringify(data), {
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=31536000' },
       });
-      await caches.default.put(url, res);
+      await caches.default.put(req, res);
     }
   } catch (e) {
     console.error('cachePut error:', e);
@@ -37,7 +39,8 @@ async function cacheGet<T>(key: string): Promise<T | undefined> {
   try {
     if (typeof caches !== 'undefined' && caches.default) {
       const url = `${WORKER_CACHE_DOMAIN}/cache/state/${encodeURIComponent(key)}`;
-      const res = await caches.default.match(url);
+      const req = new Request(url, { method: 'GET' });
+      const res = await caches.default.match(req);
       if (res) {
         return (await res.json()) as T;
       }
@@ -139,12 +142,16 @@ export class BridgeManager {
   public async setTtydUrl(codespaceName: string, url: string): Promise<void> {
     localState.ttydUrls.set(codespaceName, url);
     localState.ttydUrls.set('__global__', url);
+    localState.latestTtydUrl = url;
+
     await cachePut(`ttyd_url:${codespaceName}`, url);
     await cachePut('ttyd_url:__global__', url);
+    await cachePut('ttyd_url:latest', url);
 
     if (this.kv) {
       await this.kv.put(`ttyd_url:${codespaceName}`, url, { expirationTtl: 86400 });
       await this.kv.put('ttyd_url:__global__', url, { expirationTtl: 86400 });
+      await this.kv.put('ttyd_url:latest', url, { expirationTtl: 86400 });
     }
   }
 
@@ -154,7 +161,10 @@ export class BridgeManager {
       if (val) return val;
       const globalVal = await this.kv.get('ttyd_url:__global__');
       if (globalVal) return globalVal;
+      const latestVal = await this.kv.get('ttyd_url:latest');
+      if (latestVal) return latestVal;
     }
+
     let found = localState.ttydUrls.get(codespaceName);
     if (!found) {
       found = await cacheGet<string>(`ttyd_url:${codespaceName}`);
@@ -164,6 +174,12 @@ export class BridgeManager {
     }
     if (!found) {
       found = await cacheGet<string>('ttyd_url:__global__');
+    }
+    if (!found) {
+      found = localState.latestTtydUrl;
+    }
+    if (!found) {
+      found = await cacheGet<string>('ttyd_url:latest');
     }
     return found;
   }
@@ -339,11 +355,13 @@ export class BridgeManager {
         if (typeof caches !== 'undefined' && caches.default) {
           const cacheUrl = `${WORKER_CACHE_DOMAIN}/pending-cmds/${encodeURIComponent(codespaceName)}`;
           const globalCacheUrl = `${WORKER_CACHE_DOMAIN}/pending-cmds/__global__`;
+          const req1 = new Request(cacheUrl, { method: 'GET' });
+          const req2 = new Request(globalCacheUrl, { method: 'GET' });
           const res = new Response(JSON.stringify(queue), {
             headers: { 'Content-Type': 'application/json', 'Cache-Control': 's-maxage=300' },
           });
-          await caches.default.put(cacheUrl, res.clone());
-          await caches.default.put(globalCacheUrl, res);
+          await caches.default.put(req1, res.clone());
+          await caches.default.put(req2, res);
         }
       } catch (e) {
         console.error('Cache API put error:', e);
@@ -391,15 +409,15 @@ export class BridgeManager {
         const cacheUrl = `${WORKER_CACHE_DOMAIN}/pending-cmds/${encodeURIComponent(codespaceName)}`;
         const globalCacheUrl = `${WORKER_CACHE_DOMAIN}/pending-cmds/__global__`;
 
-        let cachedRes = await caches.default.match(cacheUrl);
+        let cachedRes = await caches.default.match(new Request(cacheUrl, { method: 'GET' }));
         if (!cachedRes) {
-          cachedRes = await caches.default.match(globalCacheUrl);
+          cachedRes = await caches.default.match(new Request(globalCacheUrl, { method: 'GET' }));
         }
 
         if (cachedRes) {
           results = await cachedRes.json();
-          await caches.default.delete(cacheUrl);
-          await caches.default.delete(globalCacheUrl);
+          await caches.default.delete(new Request(cacheUrl, { method: 'GET' }));
+          await caches.default.delete(new Request(globalCacheUrl, { method: 'GET' }));
         }
       } catch (e) {
         console.error('Cache API match error:', e);
