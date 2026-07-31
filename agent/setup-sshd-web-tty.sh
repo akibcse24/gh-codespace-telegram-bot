@@ -86,6 +86,7 @@ sleep 2
 PUBLIC_TTYD_URL=""
 if command -v gh >/dev/null 2>&1; then
   echo "🌐 Setting up GitHub Codespaces Native Public Port 7681..."
+  gh codespace ports forward 7681:7681 -c "$CODESPACE_NAME" 2>/dev/null || true
   gh codespace ports visibility 7681:public -c "$CODESPACE_NAME" 2>/dev/null || true
   GH_APP_URL="https://${CODESPACE_NAME}-7681.app.github.dev"
   HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$GH_APP_URL" || true)
@@ -185,14 +186,14 @@ chmod +x "$START_SCRIPT"
 # 1. ~/.bashrc
 if ! grep -q "codespace-telegram-agent/start.sh" ~/.bashrc 2>/dev/null; then
   echo "" >> ~/.bashrc
-  echo "[ -f $START_SCRIPT ] && $START_SCRIPT >/dev/null 2>&1 &" >> ~/.bashrc
+  echo "test -f \"$START_SCRIPT\" && \"$START_SCRIPT\" >/dev/null 2>&1 &" >> ~/.bashrc
   echo "✅ Configured auto-start in ~/.bashrc"
 fi
 
 # 2. ~/.zshrc
 if [ -f ~/.zshrc ] && ! grep -q "codespace-telegram-agent/start.sh" ~/.zshrc 2>/dev/null; then
   echo "" >> ~/.zshrc
-  echo "[ -f $START_SCRIPT ] && $START_SCRIPT >/dev/null 2>&1 &" >> ~/.zshrc
+  echo "test -f \"$START_SCRIPT\" && \"$START_SCRIPT\" >/dev/null 2>&1 &" >> ~/.zshrc
   echo "✅ Configured auto-start in ~/.zshrc"
 fi
 
@@ -205,7 +206,7 @@ fi
 # 4. System-wide /etc/profile.d/
 if [ -d /etc/profile.d ]; then
   if [ -n "$SUDO" ]; then
-    $SUDO bash -c "echo '[ -f $START_SCRIPT ] && $START_SCRIPT >/dev/null 2>&1 &' > /etc/profile.d/codespace-telegram-agent.sh && chmod +x /etc/profile.d/codespace-telegram-agent.sh" 2>/dev/null || true
+    $SUDO bash -c "echo 'test -f \"$START_SCRIPT\" && \"$START_SCRIPT\" >/dev/null 2>&1 &' > /etc/profile.d/codespace-telegram-agent.sh && chmod +x /etc/profile.d/codespace-telegram-agent.sh" 2>/dev/null || true
   fi
 fi
 
