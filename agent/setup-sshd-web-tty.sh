@@ -11,7 +11,7 @@ if [ "$TARGET_CHAT_ID" = "YOUR_CHAT_ID" ]; then
 fi
 
 echo "============================================================"
-echo "🚀 Setting up OpenSSH Server, ttyd & Public Tunnel..."
+echo "🚀 Setting up OpenSSH Server, ttyd & Auto-Boot Tunnel..."
 echo "Codespace: $CODESPACE_NAME"
 echo "Worker URL: $WORKER_URL"
 echo "============================================================"
@@ -28,26 +28,27 @@ if command -v sshd >/dev/null 2>&1; then
   $SUDO service ssh status >/dev/null 2>&1 || $SUDO service ssh start || true
 fi
 
-mkdir -p ~/.codespace-telegram-agent
-rm -f ~/.codespace-telegram-agent/*.log
+AGENT_DIR="$HOME/.codespace-telegram-agent"
+mkdir -p "$AGENT_DIR"
+rm -f "$AGENT_DIR"/*.log
 
 echo "📦 Installing / Checking ttyd web terminal binary..."
-if ! command -v ttyd >/dev/null 2>&1 && [ ! -f ~/.codespace-telegram-agent/ttyd ]; then
+if ! command -v ttyd >/dev/null 2>&1 && [ ! -f "$AGENT_DIR/ttyd" ]; then
   echo "📥 Downloading ttyd binary..."
-  curl -sSL "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64" -o ~/.codespace-telegram-agent/ttyd
-  chmod +x ~/.codespace-telegram-agent/ttyd
-  TTYD_BIN="~/.codespace-telegram-agent/ttyd"
+  curl -sSL "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64" -o "$AGENT_DIR/ttyd"
+  chmod +x "$AGENT_DIR/ttyd"
+  TTYD_BIN="$AGENT_DIR/ttyd"
 else
   if command -v ttyd >/dev/null 2>&1; then
     TTYD_BIN="ttyd"
   else
-    TTYD_BIN="~/.codespace-telegram-agent/ttyd"
+    TTYD_BIN="$AGENT_DIR/ttyd"
   fi
 fi
 
 echo "🖥️ Starting ttyd server on 0.0.0.0:7681..."
 pkill -f "ttyd" || true
-eval "nohup $TTYD_BIN --writable -p 7681 --interface 0.0.0.0 bash > ~/.codespace-telegram-agent/ttyd.log 2>&1 &"
+eval "nohup $TTYD_BIN --writable -p 7681 --interface 0.0.0.0 bash > $AGENT_DIR/ttyd.log 2>&1 &"
 
 sleep 2
 
@@ -67,33 +68,33 @@ echo "🌐 Launching Zero-Login Public Tunnels for ttyd (Cloudflare & Pinggy)...
 pkill -f "cloudflared" || true
 pkill -f "ssh.*pinggy" || true
 
-if ! command -v cloudflared >/dev/null 2>&1 && [ ! -f ~/.codespace-telegram-agent/cloudflared ]; then
+if ! command -v cloudflared >/dev/null 2>&1 && [ ! -f "$AGENT_DIR/cloudflared" ]; then
   echo "📥 Downloading cloudflared binary for fast HTTPS tunnel..."
-  curl -sSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -o ~/.codespace-telegram-agent/cloudflared 2>/dev/null || true
-  chmod +x ~/.codespace-telegram-agent/cloudflared 2>/dev/null || true
+  curl -sSL "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -o "$AGENT_DIR/cloudflared" 2>/dev/null || true
+  chmod +x "$AGENT_DIR/cloudflared" 2>/dev/null || true
 fi
 
 CF_BIN=""
 if command -v cloudflared >/dev/null 2>&1; then
   CF_BIN="cloudflared"
-elif [ -f ~/.codespace-telegram-agent/cloudflared ]; then
-  CF_BIN="~/.codespace-telegram-agent/cloudflared"
+elif [ -f "$AGENT_DIR/cloudflared" ]; then
+  CF_BIN="$AGENT_DIR/cloudflared"
 fi
 
 if [ -n "$CF_BIN" ]; then
-  eval "nohup $CF_BIN tunnel --url http://localhost:7681 > ~/.codespace-telegram-agent/cloudflared.log 2>&1 &"
+  eval "nohup $CF_BIN tunnel --url http://localhost:7681 > $AGENT_DIR/cloudflared.log 2>&1 &"
 fi
 
-eval "nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:7681 a.pinggy.online > ~/.codespace-telegram-agent/pinggy.log 2>&1 &"
+eval "nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:7681 a.pinggy.online > $AGENT_DIR/pinggy.log 2>&1 &"
 
 if [ -z "$PUBLIC_TTYD_URL" ]; then
   for i in {1..12}; do
     CANDIDATE=""
-    if [ -f ~/.codespace-telegram-agent/cloudflared.log ]; then
-      CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" ~/.codespace-telegram-agent/cloudflared.log | tail -n 1 || true)
+    if [ -f "$AGENT_DIR/cloudflared.log" ]; then
+      CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.trycloudflare\.com" "$AGENT_DIR/cloudflared.log" | tail -n 1 || true)
     fi
-    if [ -z "$CANDIDATE" ] && [ -f ~/.codespace-telegram-agent/pinggy.log ]; then
-      CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.(pinggy\.online|pinggy\.link)" ~/.codespace-telegram-agent/pinggy.log | tail -n 1 || true)
+    if [ -z "$CANDIDATE" ] && [ -f "$AGENT_DIR/pinggy.log" ]; then
+      CANDIDATE=$(grep -a -oE "https://[a-zA-Z0-9.-]+\.(pinggy\.online|pinggy\.link)" "$AGENT_DIR/pinggy.log" | tail -n 1 || true)
     fi
 
     if [[ "$CANDIDATE" == https://* ]]; then
@@ -118,29 +119,65 @@ echo "============================================================"
 echo ""
 
 echo "📥 Fetching Background Telegram Agent..."
-curl -sSL "${WORKER_URL}/agent/agent.js" -o ~/.codespace-telegram-agent/agent.js
+curl -sSL "${WORKER_URL}/agent/agent.js" -o "$AGENT_DIR/agent.js"
 
-AUTO_START_LINE="[ -f ~/.codespace-telegram-agent/agent.js ] && pgrep -f 'node.*agent.js' > /dev/null || (nohup $TTYD_BIN --writable -p 7681 --interface 0.0.0.0 bash > ~/.codespace-telegram-agent/ttyd.log 2>&1 & ; [ -f ~/.codespace-telegram-agent/cloudflared ] && nohup ~/.codespace-telegram-agent/cloudflared tunnel --url http://localhost:7681 > ~/.codespace-telegram-agent/cloudflared.log 2>&1 & ; nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:7681 a.pinggy.online > ~/.codespace-telegram-agent/pinggy.log 2>&1 & ; nohup node ~/.codespace-telegram-agent/agent.js \"${WORKER_URL}\" \"${AGENT_SECRET}\" \"${CODESPACE_NAME}\" \"${PUBLIC_TTYD_URL}\" \"${TARGET_CHAT_ID}\" > ~/.codespace-telegram-agent/agent.log 2>&1 &)"
+START_SCRIPT="$AGENT_DIR/start.sh"
+cat << EOF > "$START_SCRIPT"
+#!/bin/bash
+export HOME="${HOME:-/root}"
+AGENT_DIR="\$HOME/.codespace-telegram-agent"
 
-if ! grep -q "codespace-telegram-agent" ~/.bashrc 2>/dev/null; then
+if pgrep -f 'node.*agent.js' > /dev/null 2>&1; then
+  exit 0
+fi
+
+TTYD_BIN="ttyd"
+if [ -f "\$AGENT_DIR/ttyd" ]; then
+  TTYD_BIN="\$AGENT_DIR/ttyd"
+fi
+
+pgrep -f "ttyd" > /dev/null 2>&1 || nohup \$TTYD_BIN --writable -p 7681 --interface 0.0.0.0 bash > "\$AGENT_DIR/ttyd.log" 2>&1 &
+[ -f "\$AGENT_DIR/cloudflared" ] && ! pgrep -f "cloudflared" >/dev/null 2>&1 && nohup "\$AGENT_DIR/cloudflared" tunnel --url http://localhost:7681 > "\$AGENT_DIR/cloudflared.log" 2>&1 &
+pgrep -f "ssh.*pinggy" > /dev/null 2>&1 || nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:7681 a.pinggy.online > "\$AGENT_DIR/pinggy.log" 2>&1 &
+
+if [ -f "\$AGENT_DIR/agent.js" ]; then
+  nohup node "\$AGENT_DIR/agent.js" "${WORKER_URL}" "${AGENT_SECRET}" "${CODESPACE_NAME}" "${PUBLIC_TTYD_URL}" "${TARGET_CHAT_ID}" > "\$AGENT_DIR/agent.log" 2>&1 &
+fi
+EOF
+chmod +x "$START_SCRIPT"
+
+# 1. ~/.bashrc
+if ! grep -q "codespace-telegram-agent/start.sh" ~/.bashrc 2>/dev/null; then
   echo "" >> ~/.bashrc
-  echo "# Auto-start ttyd & Telegram Agent" >> ~/.bashrc
-  echo "$AUTO_START_LINE" >> ~/.bashrc
+  echo "[ -f $START_SCRIPT ] && $START_SCRIPT >/dev/null 2>&1 &" >> ~/.bashrc
   echo "✅ Configured auto-start in ~/.bashrc"
 fi
 
-if [ -f ~/.zshrc ] && ! grep -q "codespace-telegram-agent" ~/.zshrc 2>/dev/null; then
+# 2. ~/.zshrc
+if [ -f ~/.zshrc ] && ! grep -q "codespace-telegram-agent/start.sh" ~/.zshrc 2>/dev/null; then
   echo "" >> ~/.zshrc
-  echo "# Auto-start ttyd & Telegram Agent" >> ~/.zshrc
-  echo "$AUTO_START_LINE" >> ~/.zshrc
+  echo "[ -f $START_SCRIPT ] && $START_SCRIPT >/dev/null 2>&1 &" >> ~/.zshrc
   echo "✅ Configured auto-start in ~/.zshrc"
+fi
+
+# 3. Crontab @reboot (For Headless Container Boot)
+if command -v crontab >/dev/null 2>&1; then
+  (crontab -l 2>/dev/null | grep -v "codespace-telegram-agent" || true; echo "@reboot $START_SCRIPT >/dev/null 2>&1 &") | crontab - 2>/dev/null || true
+  echo "✅ Configured crontab @reboot auto-start for background boots"
+fi
+
+# 4. System-wide /etc/profile.d/
+if [ -d /etc/profile.d ]; then
+  if [ -n "$SUDO" ]; then
+    $SUDO bash -c "echo '[ -f $START_SCRIPT ] && $START_SCRIPT >/dev/null 2>&1 &' > /etc/profile.d/codespace-telegram-agent.sh && chmod +x /etc/profile.d/codespace-telegram-agent.sh" 2>/dev/null || true
+  fi
 fi
 
 echo "🔄 Starting Telegram Bridge agent process..."
 pkill -f "node.*agent.js" || true
-nohup node ~/.codespace-telegram-agent/agent.js "${WORKER_URL}" "${AGENT_SECRET}" "${CODESPACE_NAME}" "${PUBLIC_TTYD_URL}" "${TARGET_CHAT_ID}" > ~/.codespace-telegram-agent/agent.log 2>&1 &
+nohup node "$AGENT_DIR/agent.js" "${WORKER_URL}" "${AGENT_SECRET}" "${CODESPACE_NAME}" "${PUBLIC_TTYD_URL}" "${TARGET_CHAT_ID}" > "$AGENT_DIR/agent.log" 2>&1 &
 
 echo "============================================================"
-echo "🎉 SUCCESS! ttyd Web Terminal & Tunnel active."
+echo "🎉 SUCCESS! ttyd Web Terminal & Multi-Hook Auto-Boot active."
 echo "📱 Telegram notification sent to your bot!"
 echo "============================================================"
