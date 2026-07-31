@@ -870,7 +870,7 @@ if [ -d "\$WORKSPACE_DIR" ]; then
       "visibility": "public"
     }
   },
-  "postStartCommand": "[ -f ~/.codespace-telegram-agent/start.sh ] && ~/.codespace-telegram-agent/start.sh || (curl -sSL \"\${WORKER_URL}/agent/setup-sshd-web-tty.sh?chat_id=\${TARGET_CHAT_ID}\" | bash)"
+  "postStartCommand": "test -f ~/.codespace-telegram-agent/start.sh && ~/.codespace-telegram-agent/start.sh || curl -sSL '\${WORKER_URL}/agent/setup-sshd-web-tty.sh?chat_id=\${TARGET_CHAT_ID}' | bash"
 }
 EOF
     echo "✅ Auto-configured .devcontainer/devcontainer.json for public port 7681 forwarding"
